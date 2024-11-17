@@ -3,6 +3,7 @@ import os
 import random
 import signal
 import re
+import argparse
 
 import shutil
 
@@ -46,16 +47,42 @@ def apply_ignores(albums, ignores):
         l.append(album)
     return l
 
-ignores = get_ignore_regexes('random-music-selector-ignore')
+def sort_albums_by_mtime(albums):
+    albums.sort(key=os.path.getmtime, reverse=True)
+
+parser = argparse.ArgumentParser(description='random albums.')
+parser.add_argument('-n', default=100, type=int)
+parser.add_argument('--sort', default='random', choices=['random', 'mtime'])
+
+args = parser.parse_args()
+
+ignore_list_path='random-music-selector-ignore'
+print(f'reading ignore list {ignore_list_path}')
+ignores = get_ignore_regexes(ignore_list_path)
+
+print(f'reading albums (this can take a while)')
 albums = get_albums('/media/tyee/music/')
+
+print(f'applying ignore list')
 albums = apply_ignores(albums, ignores)
+
+# currently the network drive is encoding directories containing a : with a ~, which breaks things
+print(f'Skipping directories containing ~ (FIXME)')
+albums = list([x for x in albums if '~' not in x])
+
+print(f'sorting albums by {args.sort}')
+if args.sort == 'mtime':
+    sort_albums_by_mtime(albums)
+elif args.sort == 'random':
+    random.shuffle(albums)
+else:
+    raise RuntimeError('invalid sort choice')
 
 dst='/media/alex/TUNES'
 
-num_albums=250
+num_albums = args.n
 
 print(f'randomly copying {num_albums} out of a total of {len(albums)}')
-random.shuffle(albums)
 for i, album_path in enumerate(albums):
     parts = album_path.split(os.path.sep)
     album = parts[-1]
